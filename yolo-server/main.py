@@ -4,6 +4,7 @@ import os
 import subprocess
 import shutil
 import atexit
+from natsort import natsorted
 from Newcut import process_image
 
 app = Flask(__name__)
@@ -66,7 +67,7 @@ def segment_image():
     process_image(txt_folder, img_folder, save_folder)
 
     images = []
-    for filename in os.listdir(save_folder):
+    for filename in natsorted(os.listdir(save_folder)):
         if filename.endswith('.jpg') or filename.endswith('.png'):
             image_url = url_for('serve_image', folder=f'predict{page_id}/Result_single', filename=filename, _external=True)
             images.append({

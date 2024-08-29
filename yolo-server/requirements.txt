@@ -15,3 +15,4 @@ flask==3.0.3
 flask-cors==4.0.1
 paddleocr==2.8.1
 paddlepaddle-gpu==2.6.1
+natsort==8.4.0
