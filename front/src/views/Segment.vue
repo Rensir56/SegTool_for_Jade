@@ -132,9 +132,24 @@
           <div
             class="image-box-item"
             v-for="(item, index) in cutOuts"
-            :key="item.name"
+            :key="item.image"
           >
-            <div class="image-box-item-title">{{ ImageName(item, index) }}</div>
+            <div 
+              class="image-box-item-title"
+              v-if="!isEditing(item)"
+              @click="startEditing(item)"
+            >
+              {{ ImageName(item, index) }}
+            </div>
+            <input
+              v-else
+              type="text"
+              class="image-box-item-title"
+              v-model="editTitle"
+              @blur="saveEditing(item)"
+              @keyup.enter="saveEditing(item)"
+              ref="editInput"
+            />
             <el-icon class="image-box-item-icon" @click="removeImage(index)">
               <Close />
             </el-icon>
@@ -262,10 +277,12 @@ export default {
         "九",
         "十",
       ],
-      truncatedName: "",
+      truncatedName: "图",
       isProcessing: false,
       protectvalid: false,
       handlePage: 0,
+      editingItem: null,    // 当前编辑的项
+      editTitle: '',
     };
   },
   // created() {
@@ -854,11 +871,11 @@ export default {
         // 获取数组中的位置，生成 B 部分
         const index = this.cutOuts.length + 1; // 获取新元素在 cutOuts 中的位置
         // 生成最终的 name = A-B
-        const name = `${truncatedName}，${index}`;
+        // const name = `${truncatedName}，${index}`;
         // 创建包含 image 和 name 的新对象
         const newCutOut = {
           image: url,
-          name: name,
+          name: truncatedName,
         };
         // 将新对象添加到 cutOuts 数组中
         this.cutOuts = [newCutOut, ...this.cutOuts];
@@ -986,6 +1003,28 @@ export default {
       const storedCutOuts = localStorage.getItem("cutOuts");
       if (storedCutOuts) {
         this.cutOuts = JSON.parse(storedCutOuts);
+      }
+    },
+    isEditing(item) {
+        return this.editingItem === item;
+      },
+    startEditing(item, index) {
+      this.editingItem = item;      // 设置当前正在编辑的项
+      this.editTitle = item.name;   // 初始化编辑框内容为当前名称
+      this.$nextTick(() => {
+        const editInput = this.$refs.editInput[0];
+        if (editInput) {
+          editInput.focus();
+        }
+      });
+    },
+
+    // 保存编辑内容
+    saveEditing(item) {
+      if (this.editingItem) {
+        this.editingItem.name = this.editTitle; // 更新 item 的 name
+        this.editingItem = null;                // 退出编辑模式
+        this.saveCutOuts();                     // 保存 cutOuts
       }
     },
   },
