@@ -167,6 +167,7 @@
 <script>
 import throttle from "@/util/throttle";
 import LZString from "lz-string";
+import _ from 'lodash'; // 使用 lodash 库来实现节流
 import {
   rleFrString,
   decodeRleCounts,
@@ -509,15 +510,14 @@ export default {
       if (this.currentPage < this.totalPages) {
         this.currentPage++;
         console.log("nextPage", this.currentPage);
-
-        await this.uploadImageFromPDF(this.currentPage, true);
+        await this.updatePage();;
       }
     },
     async previousPage() {
       if (this.currentPage > 1) {
         this.currentPage--;
         console.log("previousPage", this.currentPage);
-        await this.uploadImageFromPDF(this.currentPage, true);
+        await this.updatePage();
       }
     },
     async updatePage() {
@@ -781,24 +781,29 @@ export default {
         clicks: clicks,
       };
       console.log(data);
-      this.$http
-        .post("http://localhost:8006/segment", data, {
-          headers: {
-            "Content-Type": "application/json",
-          },
-        })
-        .then((res) => {
-          const shape = res.shape;
-          const maskenc = LZString.decompressFromEncodedURIComponent(res.mask);
-          const decoded = rleFrString(maskenc);
-          this.drawCanvas(shape, decodeRleCounts(shape, decoded));
-          this.lock = false;
-        })
-        .catch((err) => {
-          console.error(err);
-          this.$message.error("生成失败");
-          this.lock = false;
-        });
+      // 使用节流函数控制请求频率
+      const throttledRequest = _.throttle(() => {
+        this.$http
+          .post("http://localhost:8006/segment", data, {
+            headers: {
+              "Content-Type": "application/json",
+            },
+          })
+          .then((res) => {
+            const shape = res.shape;
+            const maskenc = LZString.decompressFromEncodedURIComponent(res.mask);
+            const decoded = rleFrString(maskenc);
+            this.drawCanvas(shape, decodeRleCounts(shape, decoded));
+            this.lock = false;
+          })
+          .catch((err) => {
+            console.error(err);
+            this.$message.error("生成失败");
+            this.lock = false;
+          });
+      }, 400); // 设置节流时间为 200 毫秒
+
+      throttledRequest();
     },
     reset() {
       // 清除所有点
