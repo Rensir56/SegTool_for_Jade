@@ -53,9 +53,6 @@
           >
             分割
           </div>
-          <!-- <button :class="'segmentation-button' + (lock || isEverything ? ' disabled' : '')" @click="segmentEverything">
-            分割所有
-          </button> -->
           <div class="pagination" v-if="pdfFilename !== ''">
             <div
               class="page-button"
@@ -132,9 +129,24 @@
           <div
             class="image-box-item"
             v-for="(item, index) in cutOuts"
-            :key="item.name"
+            :key="item.image"
           >
-            <div class="image-box-item-title">{{ ImageName(item, index) }}</div>
+            <div
+              class="image-box-item-title"
+              v-if="!isEditing(item)"
+              @click="startEditing(item, index)"
+            >
+              {{ ImageName(item, index) }}
+            </div>
+            <input
+              v-else
+              type="text"
+              class="image-box-item-title"
+              v-model="editTitle"
+              @blur="saveEditing(item)"
+              @keyup.enter="saveEditing(item)"
+              ref="editInput"
+            />
             <el-icon class="image-box-item-icon" @click="removeImage(index)">
               <Close />
             </el-icon>
@@ -142,37 +154,7 @@
           </div>
         </VueDraggable>
         <div class="operation-box">
-          <!-- <div class="image-list">
-            <el-card 
-              class="image-list-item" 
-              v-for="(image, index) in selectedImages"
-              :key="index"
-            >
-              <div class="image-list-item-number">{{ getFormattedNumber(index + 1) }}</div>
-              <el-icon class="image-list-item-icon" @click="removeImage(index)">
-                <Close />
-              </el-icon>
-              <img 
-                slot="cover" 
-                alt="加载中" 
-                :src="image"
-              />
-            </el-card>
-            
-          </div> -->
           <div class="operation-buttons">
-            <!-- <div class="counter-container">
-              <div style="width: 30%; font-size: 20px">
-                <span>图号</span>
-              </div>
-              <div class="counter-box">
-                <el-input-number
-                  v-model="preNum"
-                  :min="1"
-                  class="counter-input"
-                ></el-input-number>
-              </div>
-            </div> -->
             <div class="operation-button" @click="confirmSaveImages">确认</div>
             <div class="operation-button" @click="clearImages">清空</div>
           </div>
@@ -221,7 +203,7 @@ export default {
       image: null,
       jumpPage: 1,
       clicks: [],
-      batchSize: 1,
+      batchSize: 2,
       clickHistory: [],
       originalSize: { w: 0, h: 0 },
       w: 0,
@@ -262,10 +244,12 @@ export default {
         "九",
         "十",
       ],
-      truncatedName: "",
+      truncatedName: "图",
       isProcessing: false,
       protectvalid: false,
       handlePage: 0,
+      editingItem: null, // 当前编辑的项
+      editTitle: "",
     };
   },
   // created() {
@@ -435,6 +419,12 @@ export default {
       console.log("uploadImageFromPDF begin");
       console.log("filename:", this.pdfFilename);
       console.log("page:", page);
+
+      // 创建一个缓存对象来存储已经上传过的图片路径
+      if (!this.imageCache) {
+        this.imageCache = {};
+      }
+
       try {
         // 获取页面图像
         const response = await fetch(
@@ -444,13 +434,33 @@ export default {
         console.log("获取页面图像成功:", data);
 
         if (data && data.image) {
-          // this.totalPages = data.totalPages;
+          // 生成一个唯一的键来标识这个图片
+          const imageKey = `${this.pdfFilename}_page_${page}`;
+          // 检查缓存中是否已经存在这个图片的路径
+          if (this.imageCache[imageKey]) {
+            console.log("图片已存在缓存中，直接返回路径");
+            console.log("imageCache[imageKey]:", this.imageCache[imageKey]);
+            // 执行 showImage 函数
+            this.showImage(
+              {
+                path: this.imageCache[imageKey].path,
+                src: this.imageCache[imageKey].src,
+              },
+              shouldShowImage
+            );
+            return this.imageCache[imageKey].path;
+          }
           // 将 Base64 图片上传到服务器
-          const path = await this.uploadImage(
+          const uploadResult = await this.uploadImage(
             `data:image/png;base64,${data.image}`,
             shouldShowImage
           );
-          return path; // 返回图像路径
+          // 将上传后的路径和 src 存储到缓存中
+          this.imageCache[imageKey] = {
+            path: uploadResult.path,
+            src: uploadResult.src,
+          };
+          return uploadResult.path; // 返回图像路径
         }
       } catch (error) {
         console.error("Error getting page image:", error);
@@ -475,7 +485,7 @@ export default {
         if (uploadResponse.ok) {
           const responseData = await uploadResponse.json();
           this.showImage(responseData, shouldShowImage);
-          return responseData.path; // 返回路径
+          return responseData; // 返回路径
         } else {
           console.error("上传失败:", uploadResponse.statusText);
         }
@@ -521,12 +531,11 @@ export default {
       console.log("cutOuts is ", this.cutOuts);
     },
     async showImage(res, flag) {
-      return new Promise((resolve) => {
-        console.log("上传成功", res);
-        this.loadImage(res.path, res.src, flag, resolve); // 加入 resolve
-      });
+      console.log("showImage begin");
+      console.log("上传成功", res);
+      this.loadImage(res.path, res.src, flag); // 加入 resolve
     },
-    loadImage(path, url, updateVariablesOnly, resolve) {
+    loadImage(path, url, updateVariablesOnly) {
       let image = new Image();
       image.src = url;
 
@@ -549,7 +558,6 @@ export default {
 
         // 更新计算后的尺寸
         this.originalSize = { w, h };
-        this.path = path;
 
         if (updateVariablesOnly || !this.firstlock) {
           this.scale = nw / w;
@@ -557,26 +565,24 @@ export default {
           this.h = nh + "px";
           this.left = (mw - nw) / 2;
           this.url = url;
+          this.path = path;
           this.firstlock = true;
         }
 
         console.log((this.scale > 1 ? "放大" : "缩小") + w + " --> " + nw);
 
         const img = document.getElementById("segment-image");
-        img.onload = () => {
-          // 确保图像在 DOM 中完全渲染后再处理 cutOuts
-          const canvas = document.getElementById("segment-canvas");
-          canvas.style.transform = `scale(${this.scale})`;
 
-          // 确保 img.src 指向正确的 URL 后再进行 cutOuts 处理
-          if (updateVariablesOnly) {
-            console.log("添加页为", this.currentPage);
-            this.addSegmentRes(this.currentPage);
-            console.log("工作区更新完成", this.segmentationResults);
-          }
+        // 确保图像在 DOM 中完全渲染后再处理 cutOuts
+        const canvas = document.getElementById("segment-canvas");
+        canvas.style.transform = `scale(${this.scale})`;
 
-          resolve(); // 在完全处理完成后 resolve
-        };
+        // 确保 img.src 指向正确的 URL 后再进行 cutOuts 处理
+        if (updateVariablesOnly) {
+          console.log("添加页为", this.currentPage);
+          this.addSegmentRes(this.currentPage);
+          console.log("工作区更新完成", this.segmentationResults);
+        }
 
         img.addEventListener("contextmenu", (e) => e.preventDefault());
         img.addEventListener("mousemove", throttle(this.handleMouseMove, 150));
@@ -854,11 +860,11 @@ export default {
         // 获取数组中的位置，生成 B 部分
         const index = this.cutOuts.length + 1; // 获取新元素在 cutOuts 中的位置
         // 生成最终的 name = A-B
-        const name = `${truncatedName}，${index}`;
+        // const name = `${truncatedName}，${index}`;
         // 创建包含 image 和 name 的新对象
         const newCutOut = {
           image: url,
-          name: name,
+          name: truncatedName,
         };
         // 将新对象添加到 cutOuts 数组中
         this.cutOuts = [newCutOut, ...this.cutOuts];
@@ -953,6 +959,10 @@ export default {
         // 清空 cutOuts 数组并保存
         this.cutOuts = [];
         this.saveCutOuts();
+        // 释放 free 掉 this.segmentationResults[this.currentPage]，避免内存泄漏
+        if (this.segmentationResults && this.segmentationResults[this.currentPage]) {
+          this.segmentationResults[this.currentPage] = null;
+        }
       } catch (error) {
         console.error("文件夹选择失败或保存失败:", error);
       }
@@ -986,6 +996,32 @@ export default {
       const storedCutOuts = localStorage.getItem("cutOuts");
       if (storedCutOuts) {
         this.cutOuts = JSON.parse(storedCutOuts);
+      }
+    },
+    isEditing(item) {
+      return this.editingItem === item;
+    },
+    startEditing(item, index) {
+      this.editingItem = item; // 设置当前正在编辑的项
+      this.editTitle = this.ImageName(item, index); // 初始化编辑框内容为当前名称
+      this.$nextTick(() => {
+        const editInput = this.$refs.editInput[0];
+        if (editInput) {
+          editInput.focus();
+        }
+      });
+    },
+
+    // 保存编辑内容
+    saveEditing(item) {
+      if (this.editingItem) {
+        item.name = this.editTitle; // 更新 item 的 name
+        // 遍历cutOuts，更新每个cutOuts[index].name = this.editTitle
+        this.cutOuts.forEach((cutOut, index) => {
+          cutOut.name = this.ImageName(item, index);
+        });
+        this.editingItem = null; // 退出编辑模式
+        this.saveCutOuts(); // 保存 cutOuts
       }
     },
   },
