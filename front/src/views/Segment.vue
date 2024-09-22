@@ -151,6 +151,13 @@
               <Close />
             </el-icon>
             <img alt="加载中" :src="item.image" />
+            <input
+              type="number"
+              class="index-input"
+              v-model.number="item.desiredIndex"
+              @blur="updateIndex(item, index)"
+              @keyup.enter="updateIndex(item, index)"
+            />
           </div>
         </VueDraggable>
         <div class="operation-box">
@@ -1029,6 +1036,17 @@ export default {
         this.saveCutOuts(); // 保存 cutOuts
       }
     },
+    updateIndex(item, currentIndex) {
+      // 更新索引
+      const desiredIndex = item.desiredIndex - 1; // 输入的数字对应数组的索引
+      if (desiredIndex >= 0 && desiredIndex < this.cutOuts.length && desiredIndex !== currentIndex) {
+        // 移动元素到指定位置
+        this.cutOuts.splice(currentIndex, 1);
+        this.cutOuts.splice(desiredIndex, 0, item);
+      }
+      // 重置 desiredIndex
+      item.desiredIndex = null;
+    },
   },
 };
 </script>
@@ -1270,6 +1288,17 @@ export default {
   border-top-right-radius: 10px;
   border-bottom-right-radius: 10px;
   /* padding: 1vh; */
+
+  .index-input {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 30px;
+  height: 30px;
+  text-align: center;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
 
   .image-box {
     position: relative;
