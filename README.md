@@ -31,7 +31,7 @@ pip install "uvicorn[standard]"
 pip install --upgrade protobuf
 pip install torchvision
 pip install lzstring
-pip install python-multipar
+pip install python-multipart
 ```
 
 需要自行下载模型文件，保存到后端目录/checkpoints中
