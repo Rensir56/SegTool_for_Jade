@@ -41,8 +41,10 @@ def upload_image():
         "hide_labels=False",
         "hide_conf=False",
         "show_boxes=False",
-        f"name=predict{page_id}"
+        f"name=predict{page_id}",
+        f"project={base_detect_path}"
     ]
+    print(command)
     result = subprocess.run(command, capture_output=True, text=True)
 
     if result.returncode != 0:
@@ -107,4 +109,4 @@ def clean_up():
 
 # 运行服务器
 if __name__ == '__main__':
-    app.run(host='localhost', port=5000, debug=True)
+    app.run(host='localhost', port=8005, debug=True)
