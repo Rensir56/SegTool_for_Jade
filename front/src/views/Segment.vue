@@ -206,12 +206,10 @@ export default {
   },
   data() {
     return {
-      uploadUrl: "http://localhost:8006/upload",
-      parsePdfUrl: "http://localhost:3000/upload", // 解析PDF的URL
       image: null,
       jumpPage: 1,
       clicks: [],
-      batchSize: 2,
+      batchSize: 4,
       clickHistory: [],
       originalSize: { w: 0, h: 0 },
       w: 0,
@@ -276,7 +274,7 @@ export default {
       console.log("上传的文件:", file);
 
       this.$http
-        .post(this.parsePdfUrl, formData, {
+        .post('/api/go/upload', formData, {
           headers: {
             "Content-Type": "multipart/form-data",
           },
@@ -436,8 +434,9 @@ export default {
       try {
         // 获取页面图像
         const response = await fetch(
-          `http://localhost:3000/show?filename=${this.pdfFilename}&page=${page}`
+          `/api/go/show?filename=${this.pdfFilename}&page=${page}`
         );
+
         const data = await response.json();
         console.log("获取页面图像成功:", data);
 
@@ -485,7 +484,7 @@ export default {
         formData.append("file", blob, fileName);
 
         // 上传图片
-        const uploadResponse = await fetch(this.uploadUrl, {
+        const uploadResponse = await fetch('/api/fastapi/upload', {
           method: "POST",
           body: formData,
         });
@@ -608,12 +607,14 @@ export default {
         this.lock = true;
         this.reset(); // 重置状态
         console.log("开始分割页", page);
+        console.log("yolo upload filename is", this.pdfFilename);
 
         const response = await this.$http.post(
-          "http://localhost:5000/upload",
+          "api/flask/upload",
           {
             path: path.replace(/\\/g, "/"), // 使用正斜杠替换反斜杠
             page: page, // 添加 page 参数
+            filename: encodeURIComponent(this.pdfFilename), // 添加经过编码的 filename 参数
           },
           {
             headers: {
@@ -624,9 +625,10 @@ export default {
         console.log("path is: ", path);
         console.log("upload yolo res is ", response);
 
-        const res = await this.$http.get(`http://localhost:5000/segment`, {
+        const res = await this.$http.get(`api/flask/segment`, {
           params: {
             pageId: page, // 将pageId作为查询参数传递
+            filename: encodeURIComponent(this.pdfFilename), // 添加经过编码的 filename 参数
           },
         });
         console.log("finish segment in page", page);
@@ -791,7 +793,7 @@ export default {
       // 使用节流函数控制请求频率
       const throttledRequest = _.throttle(() => {
         this.$http
-          .post("http://localhost:8006/segment", data, {
+          .post("api/fastapi/segment", data, {
             headers: {
               "Content-Type": "application/json",
             },

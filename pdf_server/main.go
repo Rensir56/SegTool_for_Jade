@@ -21,11 +21,13 @@ func main() {
 	}
 	log.Printf("Current working directory: %s", currentDir)
 
+	// 修改路径为 '/api/go/upload' 和 '/api/go/show'
 	http.HandleFunc("/upload", uploadHandler)
 	http.HandleFunc("/show", showHandler)
 
-	log.Println("Starting server on :3000")
-	err = http.ListenAndServe(":3000", nil)
+	// 在所有网络接口上监听 3001 端口
+	log.Println("Starting server on 0.0.0.0:3001")
+	err = http.ListenAndServe("0.0.0.0:3001", nil)
 	if err != nil {
 		log.Fatalf("Server failed to start: %v", err)
 	}

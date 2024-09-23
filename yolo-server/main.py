@@ -1,3 +1,4 @@
+from urllib.parse import unquote
 from flask import Flask, request, jsonify, send_from_directory, url_for
 from flask_cors import CORS  # 引入CORS扩展
 import os
@@ -22,6 +23,7 @@ flag_clean = True  # 你可以在运行时设置这个开关
 def upload_image():
     image_path = request.json.get('path')
     page_id = request.json.get('page')
+    file_name = unquote(request.json.get('filename'))
     if not image_path or not os.path.exists(image_path):
         return jsonify({'error': 'Invalid path'}), 400
 
@@ -42,7 +44,7 @@ def upload_image():
         "hide_conf=False",
         "show_boxes=False",
         f"name=predict{page_id}",
-        f"project={base_detect_path}"
+        f"project={os.path.join(base_detect_path, file_name)}"
     ]
     print(command)
     result = subprocess.run(command, capture_output=True, text=True)
@@ -56,10 +58,11 @@ def upload_image():
 @app.route('/segment', methods=['GET'])
 def segment_image():
     page_id = request.args.get('pageId')
+    file_name = unquote(request.args.get('filename'))
     if not page_id:
         return jsonify({'error': 'Missing pageId parameter'}), 400
 
-    img_folder = os.path.join(base_detect_path, f'predict{page_id}')
+    img_folder = os.path.join(os.path.join(base_detect_path, file_name), f'predict{page_id}')
     txt_folder = os.path.join(img_folder, 'labels')
     save_folder = os.path.join(img_folder, 'Result_single')
 
@@ -71,7 +74,7 @@ def segment_image():
     images = []
     for filename in natsorted(os.listdir(save_folder)):
         if filename.endswith('.jpg') or filename.endswith('.png'):
-            image_url = url_for('serve_image', folder=f'predict{page_id}/Result_single', filename=filename, _external=True)
+            image_url = url_for('serve_image',file_name=file_name, folder=f'predict{page_id}/Result_single', filename=filename, _external=True)
             images.append({
                 'name': filename,
                 'image': image_url
@@ -86,9 +89,9 @@ def segment_image():
     return jsonify({"images": images}), 200
 
 # 构造文件路径
-@app.route('/image/<path:folder>/<filename>')
-def serve_image(folder, filename):
-    folder_path = os.path.join(base_detect_path, folder)
+@app.route('/image/<path:file_name>/<path:folder>/<filename>')
+def serve_image(file_name, folder, filename):
+    folder_path = os.path.join(base_detect_path, file_name, folder)
     print(f"Requested folder_path: {folder_path}")
     print(f"Requested filename: {filename}")
 
@@ -109,4 +112,4 @@ def clean_up():
 
 # 运行服务器
 if __name__ == '__main__':
-    app.run(host='localhost', port=8005, debug=True)
+    app.run(host='0.0.0.0', port=8005, debug=True)

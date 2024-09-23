@@ -10,7 +10,12 @@ from segment_anything import SamPredictor, SamAutomaticMaskGenerator, sam_model_
 from pycocotools import mask as mask_utils
 import lzstring
 
+from fastapi import FastAPI, UploadFile, File
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 
+# 初始化模型
 def init():
     # your model path
     # checkpoint = "checkpoints/sam_vit_b_01ec64.pth"
@@ -26,13 +31,10 @@ def init():
 
 predictor, mask_generator = init()
 
-from fastapi import FastAPI, UploadFile, File
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, FileResponse
-from fastapi.staticfiles import StaticFiles
-
 app = FastAPI()
+
 app.mount("/upload", StaticFiles(directory="upload"), name="upload")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins="*",
@@ -44,6 +46,7 @@ app.add_middleware(
 last_image = ""
 last_logit = None
 
+# 上传文件接口
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
     print("上传图片", file.filename)
@@ -52,11 +55,13 @@ async def upload_file(file: UploadFile = File(...)):
         shutil.copyfileobj(file.file, buffer)
     return JSONResponse(content={"src": "http://localhost:8006/upload/" + file.filename, "path": os.path.abspath(file_path)})
 
+# 获取图片
 @app.get("/img/{path}")
 async def get_image(path: str):
     file_path = os.path.join("upload", path)
     return FileResponse(file_path)
 
+# 处理分割请求
 @app.post("/segment")
 def process_image(body: dict):
     global last_image, last_logit
@@ -99,10 +104,11 @@ def process_image(body: dict):
     # print(source_mask)
     lzs = lzstring.LZString()
     encoded = lzs.compressToEncodedURIComponent(source_mask)
+
     print("process finished", time.time())
     return {"shape": masks.shape, "mask": encoded}
 
-
+# 一键分割接口
 @app.get("/everything")
 def segment_everything(path: str):
     start_time = time.time()
@@ -110,6 +116,7 @@ def segment_everything(path: str):
     pil_image = Image.open(path)
     np_image = np.array(pil_image)
     masks = mask_generator.generate(np_image)
+    
     sorted_anns = sorted(masks, key=(lambda x: x['area']), reverse=True)
     img = np.zeros((sorted_anns[0]['segmentation'].shape[0], sorted_anns[0]['segmentation'].shape[1]), dtype=np.uint8)
     for idx, ann in enumerate(sorted_anns, 0):
@@ -121,12 +128,13 @@ def segment_everything(path: str):
     print("time cost", end_time - start_time)
     return {"shape": img.shape, "mask": result}
 
-
-@app.get('/automatic_masks')
+# 自动生成mask
+@app.get("/automatic_masks")
 def automatic_masks(path: str):
     pil_image = Image.open(path)
     np_image = np.array(pil_image)
     mask = mask_generator.generate(np_image)
+    
     sorted_anns = sorted(mask, key=(lambda x: x['area']), reverse=True)
     lzs = lzstring.LZString()
     res = []
@@ -134,14 +142,13 @@ def automatic_masks(path: str):
         m = ann['segmentation']
         source_mask = mask_utils.encode(m)['counts'].decode("utf-8")
         encoded = lzs.compressToEncodedURIComponent(source_mask)
-        r = {
+        res.append({
             "encodedMask": encoded,
             "point_coord": ann['point_coords'][0],
-        }
-        res.append(r)
+        })
     return res
 
-
+# 压缩图片辅助函数
 def my_compress(img):
     result = []
     last_pixel = img[0][0]
