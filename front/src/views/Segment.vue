@@ -6,20 +6,13 @@
         <!-- 上传pdf按钮与标题 -->
         <div class="title">
           <div>
-            <el-icon style="font-size: 25px"><Document></Document></el-icon>
-            <el-upload
-              ref="uploadRef"
-              style="display: inline-block"
-              :auto-upload="true"
-              :show-file-list="false"
-              :http-request="uploadPDF"
-              :on-success="handlePdfSuccess"
-              :on-error="handleUploadError"
-            >
+            <el-icon style="font-size: 25px">
+              <Document></Document>
+            </el-icon>
+            <el-upload ref="uploadRef" style="display: inline-block" :auto-upload="true" :show-file-list="false"
+              :http-request="uploadPDF" :on-success="handlePdfSuccess" :on-error="handleUploadError">
               <template #trigger>
-                <span
-                  style="font-size: 18px; font-weight: 550; cursor: pointer"
-                >
+                <span style="font-size: 18px; font-weight: 550; cursor: pointer">
                   上传PDF
                 </span>
               </template>
@@ -33,55 +26,25 @@
           <div class="options-section">
             <span class="option" @click="updatePage">刷新</span>
             <span class="option" @click="reset">重置</span>
-            <span
-              :class="'option' + (clicks.length === 0 ? ' disabled' : '')"
-              @click="undo"
-              >撤销</span
-            >
-            <span
-              :class="'option' + (clickHistory.length === 0 ? ' disabled' : '')"
-              @click="redo"
-              >恢复</span
-            >
+            <span :class="'option' + (clicks.length === 0 ? ' disabled' : '')" @click="undo">撤销</span>
+            <span :class="'option' + (clickHistory.length === 0 ? ' disabled' : '')" @click="redo">恢复</span>
           </div>
-          <div
-            :class="
-              'segmentation-button' +
-              (lock || clicks.length === 0 ? ' disabled' : '')
-            "
-            @click="cutImage"
-          >
+          <div :class="'segmentation-button' +
+            (lock || clicks.length === 0 ? ' disabled' : '')
+            " @click="cutImage">
             分割
           </div>
           <div class="pagination" v-if="pdfFilename !== ''">
-            <div
-              class="page-button"
-              @click="previousPage"
-              :disabled="currentPage <= 1"
-            >
+            <div class="page-button" @click="previousPage" :disabled="currentPage <= 1">
               上一页
             </div>
 
-            <input
-              v-if="handlePage === 1"
-              type="number"
-              v-model.number="jumpPage"
-              @keydown.enter="Jump"
-              :min="1"
-              :max="totalPages"
-            />
-            <span
-              v-if="handlePage === 0"
-              @click="handlePage = 1"
-              style="cursor: pointer"
-            >
+            <input v-if="handlePage === 1" type="number" v-model.number="jumpPage" @keydown.enter="Jump" :min="1"
+              :max="totalPages" />
+            <span v-if="handlePage === 0" @click="handlePage = 1" style="cursor: pointer">
               {{ currentPage }} / {{ totalPages }}
             </span>
-            <div
-              class="page-button"
-              @click="nextPage"
-              :disabled="currentPage >= totalPages"
-            >
+            <div class="page-button" @click="nextPage" :disabled="currentPage >= totalPages">
               下一页
             </div>
           </div>
@@ -97,28 +60,14 @@
           </div>
           <!-- pdf预览 -->
           <div class="segment-wrapper" :style="{ left: left + 'px' }">
-            <img
-              v-show="path"
-              id="segment-image"
-              :src="url"
-              :style="{ width: w, height: h }"
-              alt="加载失败"
-              crossorigin="anonymous"
-              @mousedown="handleMouseDown"
-              @mouseenter="canvasVisible = true"
-              @mouseout="
-                () => {
-                  if (!this.clicks.length && !this.isEverything)
-                    this.canvasVisible = false;
-                }
-              "
-            />
-            <canvas
-              v-show="path && canvasVisible"
-              id="segment-canvas"
-              :width="originalSize.w"
-              :height="originalSize.h"
-            ></canvas>
+            <img v-show="path" id="segment-image" :src="url" :style="{ width: w, height: h }" alt="加载失败"
+              crossorigin="anonymous" @mousedown="handleMouseDown" @mouseenter="canvasVisible = true" @mouseout="() => {
+                if (!this.clicks.length && !this.isEverything)
+                  this.canvasVisible = false;
+              }
+                " />
+            <canvas v-show="path && canvasVisible" id="segment-canvas" :width="originalSize.w"
+              :height="originalSize.h"></canvas>
             <div id="point-box" :style="{ width: w, height: h }"></div>
           </div>
         </div>
@@ -126,38 +75,18 @@
       <!-- 右侧工作区 -->
       <div class="work-box">
         <VueDraggable v-model="cutOuts" :animation="150" class="image-box">
-          <div
-            class="image-box-item"
-            v-for="(item, index) in cutOuts"
-            :key="item.image"
-          >
-            <div
-              class="image-box-item-title"
-              v-if="!isEditing(item)"
-              @click="startEditing(item, index)"
-            >
+          <div class="image-box-item" v-for="(item, index) in cutOuts" :key="item.image">
+            <div class="image-box-item-title" v-if="!isEditing(item)" @click="startEditing(item, index)">
               {{ ImageName(item, index) }}
             </div>
-            <input
-              v-else
-              type="text"
-              class="image-box-item-title"
-              v-model="editTitle"
-              @blur="saveEditing(item)"
-              @keyup.enter="saveEditing(item)"
-              ref="editInput"
-            />
+            <input v-else type="text" class="image-box-item-title" v-model="editTitle" @blur="saveEditing(item)"
+              @keyup.enter="saveEditing(item)" ref="editInput" />
             <el-icon class="image-box-item-icon" @click="removeImage(index)">
               <Close />
             </el-icon>
             <img alt="加载中" :src="item.image" />
-            <input
-              type="number"
-              class="index-input"
-              v-model.number="item.desiredIndex"
-              @blur="updateIndex(item, index)"
-              @keyup.enter="updateIndex(item, index)"
-            />
+            <input type="number" class="index-input" v-model.number="item.desiredIndex" @blur="updateIndex(item, index)"
+              @keyup.enter="updateIndex(item, index)" />
           </div>
         </VueDraggable>
         <div class="operation-box">
@@ -266,7 +195,7 @@ export default {
     this.init();
   },
   methods: {
-    async init() {},
+    async init() { },
     async uploadPDF({ file, onSuccess, onError }) {
       console.log("开始上传");
       const formData = new FormData();
@@ -609,28 +538,41 @@ export default {
         console.log("开始分割页", page);
         console.log("yolo upload filename is", this.pdfFilename);
 
-        const response = await this.$http.post(
-          "api/flask/upload",
-          {
-            path: path.replace(/\\/g, "/"), // 使用正斜杠替换反斜杠
-            page: page, // 添加 page 参数
-            filename: encodeURIComponent(this.pdfFilename), // 添加经过编码的 filename 参数
-          },
-          {
+        let response; // 在外层作用域定义 response 变量
+
+        try {
+          response = await this.$http.post("http://10.22.125.155:8005/uploadimg", {
+            path: path.replace(/\\/g, "/"),
+            page: page,
+            filename: this.pdfFilename,
+          }, {
             headers: {
               "Content-Type": "application/json",
             },
-          }
-        );
-        console.log("path is: ", path);
-        console.log("upload yolo res is ", response);
+          });
+          console.log(response.data);
+        } catch (error) {
+          console.error("Error occurred:", error.response ? error.response.data : error);
+        }
 
-        const res = await this.$http.get(`api/flask/segment`, {
-          params: {
-            pageId: page, // 将pageId作为查询参数传递
-            filename: encodeURIComponent(this.pdfFilename), // 添加经过编码的 filename 参数
-          },
-        });
+        console.log("path is: ", path);
+        console.log("upload yolo res is ", response); // 现在 response 在外层作用域中定义，可以正常使用
+
+        let res;
+        try {
+          res = await this.$http.post(`http://10.22.125.155:8005/segmentimg`, {
+            pageId: page, // 将pageId作为请求体传递
+            filename: this.pdfFilename, // 直接传递 filename
+          }, {
+            headers: {
+              "Content-Type": "application/json",
+            },
+          });
+          console.log(res);
+        } catch (error) {
+          // console.error("Error occurred:", error.res ? error.res.data : error);
+        }
+
         console.log("finish segment in page", page);
         console.log("segment yolo res is ", res);
         this.segmentationResults[page] = res.images;
@@ -793,7 +735,7 @@ export default {
       // 使用节流函数控制请求频率
       const throttledRequest = _.throttle(() => {
         this.$http
-          .post("api/fastapi/segment", data, {
+          .post("/api/fastapi/segment", data, {
             headers: {
               "Content-Type": "application/json",
             },
@@ -1062,6 +1004,7 @@ export default {
   position: absolute;
   background: linear-gradient(to bottom, #00487f 0%, #00487f81 100%);
 }
+
 /* 整个页面 */
 .segment-container {
   /* background: linear-gradient(to bottom, #00487f 0%, #00487f81 100%); */
@@ -1105,6 +1048,7 @@ export default {
     align-items: center;
     transition: 0.3s;
   }
+
   .title:hover {
     color: white;
     box-shadow: 0 0 5px rgb(150, 150, 150);
@@ -1146,12 +1090,14 @@ export default {
         align-items: center;
         transition: 0.3s;
       }
+
       .option:hover {
         background-color: rgb(100, 188, 255);
         box-shadow: 0 0 5px rgb(150, 150, 150);
         /* transform: translateX(5px); */
         transform: scale(1.05);
       }
+
       .option.disabled {
         color: gray;
         cursor: not-allowed;
@@ -1171,15 +1117,18 @@ export default {
       cursor: pointer;
       transition: 0.3s;
     }
+
     .segmentation-button:hover {
       background-color: rgb(100, 188, 255);
       box-shadow: 0 0 5px rgb(150, 150, 150);
       transform: scale(1.05);
     }
+
     .segmentation-button.disabled {
       color: gray;
       cursor: not-allowed;
     }
+
     .pagination {
       background-color: #006abb00;
       color: white;
@@ -1209,6 +1158,7 @@ export default {
         margin-right: 0.5vw;
         transition: 0.3s;
       }
+
       .page-button:hover {
         background-color: rgb(100, 188, 255);
         box-shadow: 0 0 5px rgb(150, 150, 150);
@@ -1216,6 +1166,7 @@ export default {
         cursor: pointer;
       }
     }
+
     .pagination input {
       width: 70%;
     }
@@ -1249,6 +1200,7 @@ export default {
       width: calc(100% - 220px);
       height: calc(100vh - 80px); */
     }
+
     #segment-canvas {
       position: absolute;
       left: 0;
@@ -1257,6 +1209,7 @@ export default {
       transform-origin: left top;
       z-index: 1;
     }
+
     #point-box {
       position: absolute;
       left: 0;
@@ -1264,6 +1217,7 @@ export default {
       z-index: 2;
       pointer-events: none;
     }
+
     .segment-point {
       position: absolute;
       width: 10px;
@@ -1271,6 +1225,7 @@ export default {
       border-radius: 50%;
       background-color: #409eff;
     }
+
     .segment-point.negative {
       background-color: #f56c6c;
     }
@@ -1292,15 +1247,15 @@ export default {
   /* padding: 1vh; */
 
   .index-input {
-  position: absolute;
-  bottom: 0;
-  right: 0;
-  width: 30px;
-  height: 30px;
-  text-align: center;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-}
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 30px;
+    height: 30px;
+    text-align: center;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+  }
 
   .image-box {
     position: relative;
@@ -1336,15 +1291,19 @@ export default {
       padding: 0px;
       cursor: pointer;
       z-index: 10;
-      opacity: 0; /* 初始状态隐藏 */
+      opacity: 0;
+      /* 初始状态隐藏 */
       transition: opacity 0.3s ease;
     }
+
     .image-box-item:hover .image-box-item-icon {
       opacity: 1;
     }
+
     .image-box-item-icon:hover {
       color: red;
     }
+
     .image-box-item-title {
       position: absolute;
       top: 0px;
@@ -1358,6 +1317,7 @@ export default {
       font-size: 2.5vh;
       z-index: 20;
     }
+
     .image-box-item img {
       max-width: 90%;
       max-height: 90%;
@@ -1419,6 +1379,7 @@ export default {
           height: 100%;
           width: 70%;
         }
+
         .counter-input {
           width: 100%;
           height: 100%;
@@ -1438,9 +1399,11 @@ export default {
         justify-content: center;
         align-items: center;
       }
+
       .operation-button:hover {
         background-color: rgb(100, 188, 255);
       }
+
       .operation-button.disabled {
         color: lightgray;
         cursor: not-allowed;

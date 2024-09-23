@@ -1,4 +1,3 @@
-from urllib.parse import unquote
 from flask import Flask, request, jsonify, send_from_directory, url_for
 from flask_cors import CORS  # 引入CORS扩展
 import os
@@ -19,11 +18,11 @@ model_path = "best.pt"
 flag_clean = True  # 你可以在运行时设置这个开关
 
 # 路由：上传并处理图像
-@app.route('/upload', methods=['POST'])
+@app.route('/uploadimg', methods=['POST'])
 def upload_image():
     image_path = request.json.get('path')
     page_id = request.json.get('page')
-    file_name = unquote(request.json.get('filename'))
+    file_name = request.json.get('filename')
     if not image_path or not os.path.exists(image_path):
         return jsonify({'error': 'Invalid path'}), 400
 
@@ -47,18 +46,22 @@ def upload_image():
         f"project={os.path.join(base_detect_path, file_name)}"
     ]
     print(command)
-    result = subprocess.run(command, capture_output=True, text=True)
+    # 使用 UTF-8 编码捕获输出
+    result = subprocess.run(command, capture_output=True, text=True, encoding='utf-8')
 
-    if result.returncode != 0:
+    # 检查命令结果
+    if result.returncode == 0:
+        print("Command executed successfully:", result.stdout)
+    else:
         return jsonify({'error': result.stderr}), 500
 
     return jsonify({'message': 'Image processed successfully'})
 
 # 路由：分割并返回结果图像
-@app.route('/segment', methods=['GET'])
+@app.route('/segmentimg', methods=['POST'])
 def segment_image():
-    page_id = request.args.get('pageId')
-    file_name = unquote(request.args.get('filename'))
+    page_id = request.json.get('pageId')
+    file_name = request.json.get('filename')
     if not page_id:
         return jsonify({'error': 'Missing pageId parameter'}), 400
 
@@ -104,11 +107,15 @@ def serve_image(file_name, folder, filename):
 # 清理：在服务器关闭时执行清理
 @atexit.register
 def clean_up():
-    if flag_clean:
-        for folder_name in os.listdir(base_detect_path):
-            if folder_name.startswith('predict') and folder_name != 'predict':
-                folder_path = os.path.join(base_detect_path, folder_name)
-                shutil.rmtree(folder_path, ignore_errors=True)
+    if flag_clean:  # 确保这个条件成立时才进行清理
+        for item_name in os.listdir(base_detect_path):
+            item_path = os.path.join(base_detect_path, item_name)
+            if os.path.isdir(item_path):
+                # 删除文件夹及其内容
+                shutil.rmtree(item_path, ignore_errors=True)
+            else:
+                # 删除文件
+                os.remove(item_path)
 
 # 运行服务器
 if __name__ == '__main__':

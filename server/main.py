@@ -53,7 +53,11 @@ async def upload_file(file: UploadFile = File(...)):
     file_path = os.path.join("upload", file.filename)
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
-    return JSONResponse(content={"src": "http://localhost:8006/upload/" + file.filename, "path": os.path.abspath(file_path)})
+    # 构造返回的图片 URL
+    return JSONResponse(content={
+        "src": f"http://10.22.125.155/api/fastapi/upload/{file.filename}",
+        "path": os.path.abspath(file_path)
+    })
 
 # 获取图片
 @app.get("/img/{path}")
