@@ -472,6 +472,7 @@ export default {
     },
     loadImage(path, url, updateVariablesOnly) {
       let image = new Image();
+      console.log("img.src is", url)
       image.src = url;
 
       image.onload = () => {
@@ -867,60 +868,72 @@ export default {
       }
     },
     async confirmSaveImages() {
+      const batchSize = 8; // 每批次处理的图片数量
+      const delayBetweenBatches = 500; // 每批次之间的延时（毫秒）
+
       try {
-        // 使用 showDirectoryPicker 打开文件夹选择器
-        const directoryHandle = await window.showDirectoryPicker();
+        let index = 0;
+        const totalCutOuts = this.cutOuts.length;
 
-        // 遍历 cutOuts 数组，依次保存每个图片
-        for (const [index, cutOut] of this.cutOuts.entries()) {
-          const { image: imageUrl } = cutOut;
-          try {
-            if (!imageUrl) {
-              console.error("无效的图片 URL:", imageUrl);
-              continue; // 如果 imageUrl 是无效的，跳过此循环迭代
+        while (index < totalCutOuts) {
+          const batchCutOuts = this.cutOuts.slice(index, index + batchSize);
+
+          for (const [batchIndex, cutOut] of batchCutOuts.entries()) {
+            const { image: imageUrl } = cutOut;
+            try {
+              if (!imageUrl) {
+                console.error("无效的图片 URL:", imageUrl);
+                continue; // 跳过无效的图片
+              }
+
+              const response = await fetch(imageUrl);
+
+              if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+              }
+
+              const blob = await response.blob();
+
+              // 生成文件名
+              const truncatedName = this.ImageName(cutOut, index + batchIndex);
+              if (!truncatedName) {
+                console.error("生成的文件名无效:", truncatedName);
+                continue; // 跳过无效的文件名
+              }
+
+              const fileName = `${truncatedName}.png`;
+
+              // 创建一个链接并下载文件
+              const link = document.createElement('a');
+              link.href = URL.createObjectURL(blob);
+              link.download = fileName; // 设置下载文件名
+              document.body.appendChild(link);
+              link.click(); // 自动点击链接下载文件
+              document.body.removeChild(link); // 下载后移除链接
+
+              await new Promise(resolve => setTimeout(resolve, 100)); // 可选的延时，防止过快处理
+            } catch (error) {
+              console.error("下载或保存图片失败:", error);
             }
+          }
 
-            const response = await fetch(imageUrl);
+          // 更新索引到下一个批次的起始位置
+          index += batchSize;
 
-            if (!response.ok) {
-              throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            const blob = await response.blob();
-
-            // 使用原有逻辑生成文件名
-            const truncatedName = this.ImageName(cutOut, index);
-            if (!truncatedName) {
-              console.error("生成的文件名无效:", truncatedName);
-              continue; // 如果生成的文件名无效，跳过此循环迭代
-            }
-
-            const fileName = `${truncatedName}.png`; // 可以根据图片实际格式调整
-
-            // 获取文件句柄
-            const fileHandle = await directoryHandle.getFileHandle(fileName, {
-              create: true,
-            });
-            const writableStream = await fileHandle.createWritable();
-
-            // 写入文件内容
-            await writableStream.write(blob);
-            await writableStream.close();
-          } catch (error) {
-            console.error("下载或保存图片失败:", error);
+          // 等待一段时间再处理下一个批次的图片
+          if (index < totalCutOuts) {
+            await new Promise(resolve => setTimeout(resolve, delayBetweenBatches));
           }
         }
 
         ElMessage.success("保存成功");
-        // 清空 cutOuts 数组并保存
-        this.cutOuts = [];
-        this.saveCutOuts();
-        // 释放 free 掉 this.segmentationResults[this.currentPage]，避免内存泄漏
+        this.cutOuts = []; // 清空 cutOuts 数组
+        this.saveCutOuts(); // 保存 cutOuts 数据
         if (this.segmentationResults && this.segmentationResults[this.currentPage]) {
           this.segmentationResults[this.currentPage] = null;
         }
       } catch (error) {
-        console.error("文件夹选择失败或保存失败:", error);
+        console.error("保存失败:", error);
       }
     },
     // 从 image 或 name 中截断出 A 部分
