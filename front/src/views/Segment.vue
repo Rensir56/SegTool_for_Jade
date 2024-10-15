@@ -132,6 +132,7 @@ export default {
     ElScrollbar,
     Document,
     Close,
+    VueDraggable,
   },
   data() {
     return {
