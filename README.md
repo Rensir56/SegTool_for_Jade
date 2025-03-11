@@ -61,8 +61,11 @@ sudo apt-get install poppler-utils
 ### 2.启动
 
 在cmd或者pycharm终端，cd到后端server目录下，输入`uvicorn main:app --port 8006`，启动SAM服务器
+
 在cmd终端，cd到后端pdf_server目录下，输入 `go run main.go`，启动pdf解析服务器
+
 在cmd终端，cd到后端yolo-server目录下，输入 `python ./main.py`，启动yolo服务器
+
 在cmd终端，cd到前端front目录下，输入 `npm run serve`，启动前端服务器
 
 
