@@ -1,4 +1,9 @@
+### 模型来源
+FaceBook segment-anything
+https://github.com/facebookresearch/segment-anything
 
+Yolov10
+https://github.com/THU-MIG/yolov10
 
 ### 准备工作
 
