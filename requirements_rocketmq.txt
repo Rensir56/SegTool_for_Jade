@@ -1,0 +1,51 @@
+# RocketMQ集成所需依赖
+# 核心RocketMQ客户端
+rocketmq-client-python==2.0.0
+apache-rocketmq==0.1.0
+
+# Redis缓存
+redis==5.0.1
+hiredis==2.2.3
+
+# MySQL数据库
+mysql-connector-python==8.2.0
+PyMySQL==1.1.0
+
+# 异步处理
+aiohttp==3.9.1
+asyncio-mqtt==0.13.0
+
+# Web框架
+fastapi==0.104.1
+uvicorn==0.24.0
+pydantic==2.5.0
+
+# 数据处理
+numpy==1.24.3
+opencv-python==4.8.1.78
+
+# SAM模型依赖
+torch==2.1.0
+torchvision==0.16.0
+segment-anything==1.0
+
+# 图像处理
+Pillow==10.1.0
+pycocotools==2.0.7
+
+# 压缩和编码
+lz-string==1.0.4
+
+# 日志和监控
+loguru==0.7.2
+prometheus-client==0.19.0
+
+# 工具库
+python-multipart==0.0.6
+python-dotenv==1.0.0
+schedule==1.2.0
+
+# 开发和测试
+pytest==7.4.3
+pytest-asyncio==0.21.1
+httpx==0.25.2 
