@@ -193,7 +193,7 @@ def process_image(body: dict, user_agent: str = Header(None), x_forwarded_for: s
     
     lzs = lzstring.LZString()
     encoded = lzs.compressToEncodedURIComponent(source_mask)
-    
+
     # 更新用户会话
     if redis_cache:
         session_data = {
