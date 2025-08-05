@@ -1,72 +1,89 @@
-### 模型来源
-FaceBook segment-anything
-https://github.com/facebookresearch/segment-anything
+# SegTool for Jade - 图像分割工具
 
-Yolov10
-https://github.com/THU-MIG/yolov10
+一个基于SAM (Segment Anything Model) 和YOLOv10的智能图像分割工具，支持PDF文档处理和自动目标检测。
 
-### 准备工作
+## 🏗️ 项目架构
 
-建议安装在虚拟机环境下，pdf-server依赖虚拟机环境运行。在windows下的话要手动安装一下poppler并配置一下系统环境变量
-
-#### SAM前端依赖
-
-```bash
-npm install
-or
-yarn install
+```
+SegTool_for_Jade/
+├── 📁 front/                 # Vue3前端应用
+├── 📁 server/               # SAM分割服务 (FastAPI)
+├── 📁 yolo-server/          # YOLOv10检测服务
+├── 📁 pdf_server/           # PDF解析服务 (Go)
+├── 📁 nginx/                # Nginx配置
+├── 📁 docs/                 # 项目文档
+├── 📁 scripts/              # 部署和工具脚本
+├── 📁 config/               # 配置文件
+└── 📁 database/             # 数据库相关文件
 ```
 
-#### SAM后端依赖
+## 🚀 快速开始
 
-前端使用了Vue3+ElementPlus（https://element-plus.org/zh-CN/#/zh-CN）+axios+lz-string
-
-后端是fastapi（https://fastapi.tiangolo.com/），FastAPI 依赖 Python 3.8 及更高版本
-
-安装 FastAPI 
+### 1. 环境准备
 
 ```bash
-pip install fastapi
-pip install "uvicorn[standard]"
+# 克隆项目
+git clone <repository-url>
+cd SegTool_for_Jade
+
+# 运行自动环境配置脚本
+python setup_local_environment.py
 ```
 
-后端基于SAM的代码 https://github.com/facebookresearch/segment-anything
+### 2. 启动服务
 
 ```bash
-pip install --upgrade protobuf
-pip install torchvision
-pip install lzstring
-pip install python-multipart
+# 一键启动所有服务
+python start_services.py
+
+# 或手动启动各个服务
+cd server && uvicorn main:app --port 8006      # SAM服务
+cd yolo-server && python main.py               # YOLO服务  
+cd pdf_server && go run main.go                # PDF服务
+cd front && npm run serve                      # 前端服务
 ```
 
-需要自行下载模型文件，保存到后端目录/checkpoints中
+### 3. 访问应用
 
-- **`default` or `vit_h`: [ViT-H SAM model.](https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth)**
-- `vit_l`: [ViT-L SAM model.](https://dl.fbaipublicfiles.com/segment_anything/sam_vit_l_0b3195.pth)
-- `vit_b`: [ViT-B SAM model.](https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth)
+- 前端界面: http://localhost:8080
+- SAM API: http://localhost:8006
+- YOLO API: http://localhost:5000
+- PDF服务: http://localhost:8081
 
-#### yolo后端依赖
+## 🛠️ 技术栈
 
-```bash
-pip install -r requirements.txt
-pip install -e .
-```
+### 前端
+- Vue 3 + Element Plus
+- Axios + LZ-String
+- Canvas绘图
 
-#### pdf后端依赖
+### 后端服务
+- **SAM服务**: FastAPI + PyTorch
+- **YOLO服务**: Flask + Ultralytics
+- **PDF服务**: Go + Poppler
 
-```bash
-sudo apt-get install poppler-utils
-```
+### 基础设施
+- Redis缓存
+- Nginx反向代理
+- Docker容器化
 
-### 2.启动
+## 📋 依赖模型
 
-在cmd或者pycharm终端，cd到后端server目录下，输入`uvicorn main:app --port 8006`，启动SAM服务器
+### SAM模型 (需手动下载到 server/checkpoints/)
+- [ViT-H SAM model](https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth) (推荐)
+- [ViT-L SAM model](https://dl.fbaipublicfiles.com/segment_anything/sam_vit_l_0b3195.pth)
+- [ViT-B SAM model](https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth)
 
-在cmd终端，cd到后端pdf_server目录下，输入 `go run main.go`，启动pdf解析服务器
+### YOLOv10模型
+- 自动下载或使用预训练模型
 
-在cmd终端，cd到后端yolo-server目录下，输入 `python ./main.py`，启动yolo服务器
+## 🤝 贡献
 
-在cmd终端，cd到前端front目录下，输入 `npm run serve`，启动前端服务器
+请查看 [CONTRIBUTING.md](docs/CONTRIBUTING.md) 了解如何参与项目开发。
+
+## 📄 许可证
+
+本项目基于 MIT 许可证开源。
 
 
 

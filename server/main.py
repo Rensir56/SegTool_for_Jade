@@ -1,6 +1,8 @@
 import os
 import shutil
 import time
+import hashlib
+import logging
 
 from PIL import Image
 import numpy as np
@@ -10,10 +12,17 @@ from segment_anything import SamPredictor, SamAutomaticMaskGenerator, sam_model_
 from pycocotools import mask as mask_utils
 import lzstring
 
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
+
+from redis_cache import init_redis_cache, get_redis_cache
+from utils.click_signature import generate_click_signature
+
+# 配置日志
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # 初始化模型
 def init():
@@ -26,6 +35,14 @@ def init():
     sam.to(device='cuda')
     predictor = SamPredictor(sam)
     mask_generator = SamAutomaticMaskGenerator(sam)
+    
+    # 初始化Redis缓存
+    try:
+        init_redis_cache(host='localhost', port=6379, db=0)
+        logger.info("Redis cache initialized successfully")
+    except Exception as e:
+        logger.warning(f"Redis cache initialization failed: {e}, fallback to memory cache")
+    
     return predictor, mask_generator
 
 
@@ -43,8 +60,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# 保留全局变量作为fallback（当Redis不可用时）
 last_image = ""
 last_logit = None
+
+def get_user_id_from_request(user_agent: str = Header(None), x_forwarded_for: str = Header(None)) -> str:
+    """从请求头生成用户ID（简单实现，生产环境应使用JWT等）"""
+    user_signature = f"{user_agent}_{x_forwarded_for}_{int(time.time() / 86400)}"  # 按天分组
+    return hashlib.md5(user_signature.encode()).hexdigest()[:16]
+
+
 
 # 上传文件接口
 @app.post("/upload")
@@ -67,50 +92,124 @@ async def get_image(path: str):
 
 # 处理分割请求
 @app.post("/segment")
-def process_image(body: dict):
+def process_image(body: dict, user_agent: str = Header(None), x_forwarded_for: str = Header(None)):
     global last_image, last_logit
-    print("start processing image", time.time())
+    
+    start_time = time.time()
+    logger.info(f"Start processing image at {start_time}")
+    
     path = body["path"]
+    clicks = body["clicks"]
+    user_id = get_user_id_from_request(user_agent, x_forwarded_for)
+    click_signature = generate_click_signature(clicks)
+    
+    # 尝试使用Redis缓存
+    redis_cache = None
+    try:
+        redis_cache = get_redis_cache()
+    except Exception as e:
+        logger.warning(f"Redis cache not available: {e}")
+    
     is_first_segment = False
-    # 看上次分割的图片是不是该图片
-    if path != last_image:  # 不是该图片，重新生成图像embedding
+    
+    # 检查SAM embedding缓存
+    if redis_cache:
+        cached_embedding = redis_cache.get_sam_embedding(path)
+        if cached_embedding:
+            # 从缓存恢复embedding状态
+            logger.info("Using cached SAM embedding")
+            # 注意：实际的embedding已经在predictor内部，这里只是标记
+            if cached_embedding.get('image_path') != path:
+                is_first_segment = True
+        else:
+            is_first_segment = True
+            logger.info("SAM embedding cache miss, generating new embedding")
+    else:
+        # Fallback到原有逻辑
+        if path != last_image:
+            is_first_segment = True
+    
+    # 如果是第一次处理该图片，生成embedding
+    if is_first_segment:
         pil_image = Image.open(path)
         np_image = np.array(pil_image)
         predictor.set_image(np_image)
+        
+        # 缓存embedding信息
+        if redis_cache:
+            embedding_data = {
+                'image_path': path,
+                'processed_at': time.time(),
+                'image_shape': np_image.shape
+            }
+            redis_cache.set_sam_embedding(path, embedding_data, ttl=3600)  # 1小时缓存
+        
+        # Fallback
         last_image = path
-        is_first_segment = True
-        print("第一次识别该图片，获取embedding中")
-    # 获取mask
-    clicks = body["clicks"]
+        logger.info(f"Generated new embedding for {path}")
+    
+    # 检查logit缓存（基于点击历史）
+    cached_logit = None
+    if redis_cache and not is_first_segment:
+        cached_logit = redis_cache.get_sam_logit(path, click_signature)
+    
+    # 准备预测参数
     input_points = []
     input_labels = []
     for click in clicks:
         input_points.append([click["x"], click["y"]])
         input_labels.append(click["clickType"])
-    print("input_points:{}, input_labels:{}".format(input_points, input_labels))
+    
+    logger.info(f"input_points: {input_points}, input_labels: {input_labels}")
     input_points = np.array(input_points)
     input_labels = np.array(input_labels)
+    
+    # 执行预测
     masks, scores, logits = predictor.predict(
         point_coords=input_points,
         point_labels=input_labels,
-        mask_input=last_logit[None, :, :] if not is_first_segment else None,
+        mask_input=cached_logit[None, :, :] if cached_logit is not None else (last_logit[None, :, :] if not is_first_segment and last_logit is not None else None),
         multimask_output=is_first_segment  # 第一次产生3个结果，选择最优的
     )
-    # 设置mask_input，为下一次做准备
+    
+    # 选择最佳结果
     best = np.argmax(scores)
-    last_logit = logits[best, :, :]
-    masks = masks[best, :, :]
-    # print(mask_utils.encode(np.asfortranarray(masks))["counts"])
-    # numpy_array = np.frombuffer(mask_utils.encode(np.asfortranarray(masks))["counts"], dtype=np.uint8)
-    # 打印numpy数组作为uint8array的格式
-    # print("Uint8Array([" + ", ".join(map(str, numpy_array)) + "])")
-    source_mask = mask_utils.encode(np.asfortranarray(masks))["counts"].decode("utf-8")
-    # print(source_mask)
+    best_logit = logits[best, :, :]
+    best_mask = masks[best, :, :]
+    
+    # 缓存logit供下次使用
+    if redis_cache:
+        redis_cache.set_sam_logit(path, click_signature, best_logit, ttl=1800)  # 30分钟缓存
+    
+    # Fallback
+    last_logit = best_logit
+    
+    # 编码mask结果
+    source_mask = mask_utils.encode(np.asfortranarray(best_mask))["counts"]
+    if isinstance(source_mask, bytes):
+        source_mask = source_mask.decode("utf-8")
+    
     lzs = lzstring.LZString()
     encoded = lzs.compressToEncodedURIComponent(source_mask)
 
-    print("process finished", time.time())
-    return {"shape": masks.shape, "mask": encoded}
+    # 更新用户会话
+    if redis_cache:
+        session_data = {
+            'last_processed_image': path,
+            'last_processed_time': time.time(),
+            'total_clicks': len(clicks)
+        }
+        redis_cache.set_user_session(user_id, session_data)
+    
+    processing_time = time.time() - start_time
+    logger.info(f"Processing completed in {processing_time:.2f}s")
+    
+    return {
+        "shape": best_mask.shape, 
+        "mask": encoded,
+        "processing_time": processing_time,
+        "cache_hit": cached_logit is not None
+    }
 
 # 一键分割接口
 @app.get("/everything")
