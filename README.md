@@ -119,10 +119,6 @@ cd front && npm run serve                      # 前端服务
 ### YOLOv10模型
 - 自动下载或使用预训练模型
 
-## 🤝 贡献
-
-请查看 [CONTRIBUTING.md](docs/CONTRIBUTING.md) 了解如何参与项目开发。
-
 ## 📄 许可证
 
 本项目基于 MIT 许可证开源。
