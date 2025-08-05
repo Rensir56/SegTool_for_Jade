@@ -7,8 +7,14 @@ import time
 import logging
 import json
 import numpy as np
+import sys
+import os
 from typing import Dict, Any, List
 from rocketmq_integration import SegmentMessage, MessageType
+
+# 添加server目录到路径，以便导入utils模块
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'server'))
+from utils.click_signature import generate_click_signature_full
 
 logger = logging.getLogger(__name__)
 
@@ -310,15 +316,9 @@ class MessageHandlers:
             'status': 'completed'
         }
     
-    def _generate_click_signature(self, clicks: List[Dict]) -> str:
-        """生成点击签名用于缓存"""
-        # 将点击坐标和类型转换为字符串签名
-        click_str = ""
-        for click in sorted(clicks, key=lambda x: (x['x'], x['y'])):
-            click_str += f"{click['x']},{click['y']},{click['clickType']};"
-        
-        import hashlib
-        return hashlib.md5(click_str.encode()).hexdigest()
+    def _generate_click_signature(self, clicks: List[Dict], grid_size: int = 20) -> str:
+        """生成点击签名用于缓存，支持坐标平滑化（使用共享工具函数）"""
+        return generate_click_signature_full(clicks, grid_size)
     
     def get_processing_stats(self) -> Dict[str, Any]:
         """获取处理统计信息"""
