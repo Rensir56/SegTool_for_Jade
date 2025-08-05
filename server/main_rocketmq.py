@@ -252,6 +252,13 @@ async def get_queue_stats():
         return {
             'rocketmq_stats': mq_stats,
             'processing_stats': handler_stats,
+            'embedding_cache_stats': {
+                'hit_rate': handler_stats.get('embedding_cache_hit_rate', 0),
+                'cache_size': handler_stats.get('current_embedding_cache_size', 0),
+                'max_cache_size': handler_stats.get('max_embedding_cache_size', 5),
+                'hits': handler_stats.get('embedding_cache_hits', 0),
+                'misses': handler_stats.get('embedding_cache_misses', 0)
+            },
             'server_status': 'healthy'
         }
         
