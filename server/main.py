@@ -19,6 +19,7 @@ from fastapi.staticfiles import StaticFiles
 
 from redis_cache import init_redis_cache, get_redis_cache
 from utils.click_signature import generate_click_signature
+from embedding_cache import get_embedding_cache, init_embedding_cache
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -42,6 +43,13 @@ def init():
         logger.info("Redis cache initialized successfully")
     except Exception as e:
         logger.warning(f"Redis cache initialization failed: {e}, fallback to memory cache")
+    
+    # 初始化Embedding缓存
+    try:
+        init_embedding_cache(max_cache_size=10, max_memory_mb=1024)
+        logger.info("Embedding cache initialized successfully")
+    except Exception as e:
+        logger.warning(f"Embedding cache initialization failed: {e}")
     
     return predictor, mask_generator
 
@@ -113,21 +121,30 @@ def process_image(body: dict, user_agent: str = Header(None), x_forwarded_for: s
     is_first_segment = False
     
     # 检查SAM embedding缓存
-    if redis_cache:
-        cached_embedding = redis_cache.get_sam_embedding(path)
-        if cached_embedding:
-            # 从缓存恢复embedding状态
-            logger.info("Using cached SAM embedding")
-            # 注意：实际的embedding已经在predictor内部，这里只是标记
-            if cached_embedding.get('image_path') != path:
-                is_first_segment = True
-        else:
-            is_first_segment = True
-            logger.info("SAM embedding cache miss, generating new embedding")
+    embedding_cache = get_embedding_cache()
+    cached_embedding = embedding_cache.get(path)
+    
+    if cached_embedding is not None:
+        # 从内存缓存恢复embedding
+        logger.info("Using cached SAM embedding from memory")
+        # 将缓存的embedding设置到predictor
+        predictor.features = cached_embedding
+        predictor.is_image_set = True
+        is_first_segment = False
     else:
-        # Fallback到原有逻辑
-        if path != last_image:
-            is_first_segment = True
+        # 检查Redis元数据缓存
+        if redis_cache:
+            cached_metadata = redis_cache.get_sam_embedding(path)
+            if cached_metadata:
+                logger.info("Found embedding metadata in Redis, but embedding not in memory")
+                is_first_segment = True
+            else:
+                is_first_segment = True
+                logger.info("SAM embedding cache miss, generating new embedding")
+        else:
+            # Fallback到原有逻辑
+            if path != last_image:
+                is_first_segment = True
     
     # 如果是第一次处理该图片，生成embedding
     if is_first_segment:
@@ -135,7 +152,14 @@ def process_image(body: dict, user_agent: str = Header(None), x_forwarded_for: s
         np_image = np.array(pil_image)
         predictor.set_image(np_image)
         
-        # 缓存embedding信息
+        # 缓存embedding到内存
+        if embedding_cache:
+            embedding_cache.put(path, predictor.features, {
+                'image_shape': np_image.shape,
+                'processed_at': time.time()
+            })
+        
+        # 缓存embedding元数据到Redis
         if redis_cache:
             embedding_data = {
                 'image_path': path,
@@ -210,6 +234,113 @@ def process_image(body: dict, user_agent: str = Header(None), x_forwarded_for: s
         "processing_time": processing_time,
         "cache_hit": cached_logit is not None
     }
+
+# 缓存监控接口
+@app.get("/cache/stats")
+def get_cache_stats():
+    """获取缓存统计信息"""
+    try:
+        redis_cache = get_redis_cache()
+        if redis_cache:
+            stats = redis_cache.get_cache_performance_stats()
+            return {
+                "success": True,
+                "stats": stats,
+                "timestamp": time.time()
+            }
+        else:
+            return {
+                "success": False,
+                "error": "Redis cache not available",
+                "timestamp": time.time()
+            }
+    except Exception as e:
+        logger.error(f"Error getting cache stats: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": time.time()
+        }
+
+@app.post("/cache/cleanup")
+def cleanup_cache():
+    """清理过期缓存"""
+    try:
+        redis_cache = get_redis_cache()
+        if redis_cache:
+            redis_cache.cleanup_expired_chunks()
+            return {
+                "success": True,
+                "message": "Cache cleanup completed",
+                "timestamp": time.time()
+            }
+        else:
+            return {
+                "success": False,
+                "error": "Redis cache not available",
+                "timestamp": time.time()
+            }
+    except Exception as e:
+        logger.error(f"Error cleaning up cache: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": time.time()
+        }
+
+@app.get("/cache/embedding/stats")
+def get_embedding_cache_stats():
+    """获取embedding缓存统计信息"""
+    try:
+        embedding_cache = get_embedding_cache()
+        if embedding_cache:
+            stats = embedding_cache.get_stats()
+            cache_info = embedding_cache.get_cache_info()
+            return {
+                "success": True,
+                "stats": stats,
+                "cache_info": cache_info,
+                "timestamp": time.time()
+            }
+        else:
+            return {
+                "success": False,
+                "error": "Embedding cache not available",
+                "timestamp": time.time()
+            }
+    except Exception as e:
+        logger.error(f"Error getting embedding cache stats: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": time.time()
+        }
+
+@app.post("/cache/embedding/clear")
+def clear_embedding_cache():
+    """清空embedding缓存"""
+    try:
+        embedding_cache = get_embedding_cache()
+        if embedding_cache:
+            embedding_cache.clear()
+            return {
+                "success": True,
+                "message": "Embedding cache cleared",
+                "timestamp": time.time()
+            }
+        else:
+            return {
+                "success": False,
+                "error": "Embedding cache not available",
+                "timestamp": time.time()
+            }
+    except Exception as e:
+        logger.error(f"Error clearing embedding cache: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": time.time()
+        }
 
 # 一键分割接口
 @app.get("/everything")
