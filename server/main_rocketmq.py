@@ -26,6 +26,7 @@ from rocketmq_integration import (
 )
 from rocketmq_message_handlers import init_message_handlers, get_message_handlers
 from redis_cache import init_redis_cache, get_redis_cache
+from utils.click_signature import generate_click_signature_full
 
 # 数据库集成
 from database_manager import init_database_manager, get_database_manager
@@ -289,14 +290,9 @@ async def health_check():
             'timestamp': time.time()
         }
 
-def _generate_click_signature(clicks):
-    """生成点击签名"""
-    click_str = ""
-    for click in sorted(clicks, key=lambda x: (x['x'], x['y'])):
-        click_str += f"{click['x']},{click['y']},{click['clickType']};"
-    
-    import hashlib
-    return hashlib.md5(click_str.encode()).hexdigest()
+def _generate_click_signature(clicks, grid_size: int = 20):
+    """生成点击签名，支持坐标平滑化（使用共享工具函数）"""
+    return generate_click_signature_full(clicks, grid_size)
 
 def _execute_sam_segmentation(image_path: str, clicks: list):
     """执行SAM分割"""

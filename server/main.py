@@ -18,6 +18,7 @@ from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from redis_cache import init_redis_cache, get_redis_cache
+from utils.click_signature import generate_click_signature
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -68,10 +69,7 @@ def get_user_id_from_request(user_agent: str = Header(None), x_forwarded_for: st
     user_signature = f"{user_agent}_{x_forwarded_for}_{int(time.time() / 86400)}"  # 按天分组
     return hashlib.md5(user_signature.encode()).hexdigest()[:16]
 
-def generate_click_signature(clicks: list) -> str:
-    """生成点击序列的签名，用于缓存键"""
-    click_str = "_".join([f"{c['x']},{c['y']},{c['clickType']}" for c in clicks])
-    return hashlib.md5(click_str.encode()).hexdigest()[:16]
+
 
 # 上传文件接口
 @app.post("/upload")
