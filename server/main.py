@@ -211,6 +211,59 @@ def process_image(body: dict, user_agent: str = Header(None), x_forwarded_for: s
         "cache_hit": cached_logit is not None
     }
 
+# 缓存监控接口
+@app.get("/cache/stats")
+def get_cache_stats():
+    """获取缓存统计信息"""
+    try:
+        redis_cache = get_redis_cache()
+        if redis_cache:
+            stats = redis_cache.get_cache_performance_stats()
+            return {
+                "success": True,
+                "stats": stats,
+                "timestamp": time.time()
+            }
+        else:
+            return {
+                "success": False,
+                "error": "Redis cache not available",
+                "timestamp": time.time()
+            }
+    except Exception as e:
+        logger.error(f"Error getting cache stats: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": time.time()
+        }
+
+@app.post("/cache/cleanup")
+def cleanup_cache():
+    """清理过期缓存"""
+    try:
+        redis_cache = get_redis_cache()
+        if redis_cache:
+            redis_cache.cleanup_expired_chunks()
+            return {
+                "success": True,
+                "message": "Cache cleanup completed",
+                "timestamp": time.time()
+            }
+        else:
+            return {
+                "success": False,
+                "error": "Redis cache not available",
+                "timestamp": time.time()
+            }
+    except Exception as e:
+        logger.error(f"Error cleaning up cache: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": time.time()
+        }
+
 # 一键分割接口
 @app.get("/everything")
 def segment_everything(path: str):
